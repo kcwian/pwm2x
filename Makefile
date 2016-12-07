@@ -1,0 +1,11 @@
+ARCHITECTURE  = avr
+BOARD_TAG:=pro
+BOARD_SUB:=16MHzatmega328
+#BOARD_TAG:=mega
+#BOARD_SUB:=atmega2560
+#F_CPU:=8000000L
+#MCU:=atmega328p
+#MONITOR_PORT:=/dev/ttyUSB0
+#AVRDUDE_ARD_BAUDRATE=57600
+ARDUINO_LIBS=
+include /usr/share/arduino/Arduino.mk
