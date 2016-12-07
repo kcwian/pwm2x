@@ -42,6 +42,10 @@
 #define PB0 PORTB0 
 
 
+#ifndef START_CHANNEL
+#define START_CHANNEL 0
+#endif // START_CHANNEL
+
 // -------------------------------------------------------------
 // SERVO INPUT MODE - !EXPERIMENTAL!
 // -------------------------------------------------------------
@@ -310,12 +314,12 @@ CHECK_PINS_START: // Start of servo input check
     // Store current servo input pins
     servo_pins = SERVO_INPUT;
 
-    // Calculate servo input pin change mask
-    uint8_t servo_change = servo_pins ^ servo_pins_old;
-
     // Set initial servo pin and channel
-    uint8_t servo_pin = 1;
-    uint8_t servo_channel = 0;
+    uint8_t servo_channel = START_CHANNEL;
+    uint8_t servo_pin = ( 1 << START_CHANNEL);
+
+    // Calculate servo input pin change mask
+    uint8_t servo_change = (servo_pins ^ servo_pins_old) & ~(( 1 << START_CHANNEL ) - 1);
 
 CHECK_PINS_LOOP: // Input servo pin check loop
 
@@ -445,7 +449,7 @@ ISR( PPM_INT_VECTOR )
     // Select the next ppm channel
     if( ++ppm_channel >= PPM_ARRAY_MAX ) 
 	{
-		ppm_channel = 0;
+		ppm_channel = START_CHANNEL;
 	}
 }
 // ------------------------------------------------------------------------------

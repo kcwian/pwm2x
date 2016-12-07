@@ -20,6 +20,10 @@
 // PREPROCESSOR DIRECTIVES
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+#define CONFIGPIN 17    // Arduino pin 17 (PC3) to read config on startup
+#define START_CHANNEL 2 // 0 = normal, 2 when using serial connection to mask out interrupts due to serial comms.
+#define SERIAL_SBUS 1   // defined: output sbus data (100kbps,8e2)
+
 #include "Arduino.h"
 #include "ppm_encoder.h"
 #include <util/delay.h>
@@ -75,19 +79,12 @@
 	uint16_t led_acceleration; // Led acceleration based on throttle stick position
 	bool servo_error_condition = false;	//	Servo signal error condition
 	
-	static uint16_t servo_error_detection_timer=0;		// Servo error detection timer
-	static uint16_t servo_error_condition_timer=0; 		// Servo error condition timer
 	static uint16_t blink_led_timer = 0; 		// Blink led timer
-	
-	#ifdef PASSTHROUGH_MODE_ENABLED
-	static uint8_t mux_timer = 0;				// Mux timer
-	static uint8_t mux_counter = 0;				// Mux counter
-	static int8_t mux_check = 0;
-	static uint16_t mux_ppm = 500;
-	#endif
 	
 	static uint16_t led_code_timer = 0;	// Blink Code Timer
 	static uint8_t led_code_symbol = 0;	// Blink Code current symbol
+
+    static uint8_t serconfig = 0;
 
 	
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -187,19 +184,63 @@
 	// ------------------------------------------------------------------------------
 	// ppm reading helper - interrupt safe and non blocking function
 	// ------------------------------------------------------------------------------
-	uint16_t ppm_read( uint8_t channel )
+	static inline uint16_t ppm_read( uint8_t channel )
 	{
-		uint16_t ppm_tmp = ppm[ channel ];
-		while( ppm_tmp != ppm[ channel ] ) ppm_tmp = ppm[ channel ];
+
+        uint8_t _ppm_channel = ( channel << 1 ) + 1;
+		uint16_t ppm_tmp = ppm[ _ppm_channel ];
+		while( ppm_tmp != ppm[ _ppm_channel ] ) ppm_tmp = ppm[ _ppm_channel ];
 
 		return ppm_tmp;
 	}
+uint8_t SBUS_Packet_Data[25];
+uint8_t SBUS_Failsafe_Active = 0;
+uint8_t SBUS_Lost_Frame = 0;
+
+void SBUS_Build_Packet(void)
+{
+	uint8_t SBUS_Current_Channel = 0;
+	uint8_t SBUS_Current_Channel_Bit = 0;
+	uint8_t SBUS_Current_Packet_Bit = 0;
+	uint8_t SBUS_Packet_Position = 0;
+
+  for(SBUS_Packet_Position = 0; SBUS_Packet_Position < 25; SBUS_Packet_Position++) 
+  {
+	SBUS_Packet_Data[SBUS_Packet_Position] = 0x00;  //Zero out packet data
+  }
+  
+  SBUS_Current_Packet_Bit = 0;
+  SBUS_Packet_Data[0] = 0x0F;  //Start uint8_t
+  SBUS_Packet_Position = 1;
+  
+  for(SBUS_Current_Channel = START_CHANNEL; SBUS_Current_Channel < SERVO_CHANNELS; SBUS_Current_Channel++)
+  {
+    for(SBUS_Current_Channel_Bit = 0; SBUS_Current_Channel_Bit < 11; SBUS_Current_Channel_Bit++)
+    {
+      if(SBUS_Current_Packet_Bit > 7)
+      {
+        SBUS_Current_Packet_Bit = 0;  //If we just set bit 7 in a previous step, reset the packet bit to 0 and
+        SBUS_Packet_Position++;       //Move to the next packet uint8_t
+      }
+      SBUS_Packet_Data[SBUS_Packet_Position] |= (((ppm_read(SBUS_Current_Channel)>>SBUS_Current_Channel_Bit) & 0x01)<<SBUS_Current_Packet_Bit);  //Downshift the channel data bit, then upshift it to set the packet data uint8_t
+      SBUS_Current_Packet_Bit++;
+    }
+  }
+/*
+  if(SBUS_Channel_Data[16] > 1023) SBUS_Packet_Data[23] |= (1<<0);  //Any number above 1023 will set the digital servo bit
+  if(SBUS_Channel_Data[17] > 1023) SBUS_Packet_Data[23] |= (1<<1);
+  if(SBUS_Lost_Frame != 0) SBUS_Packet_Data[23] |= (1<<2);          //Any number above 0 will set the lost frame and failsafe bits
+  if(SBUS_Failsafe_Active != 0) SBUS_Packet_Data[23] |= (1<<3);
+*/
+  SBUS_Packet_Data[24] = 0x00;  //End uint8_t
+}
 
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
 	// INITIALISATION CODE
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void setup() {
+    pinMode(CONFIGPIN, INPUT);
   
   	
 	// ------------------------------------------------------------------------------	
@@ -259,9 +300,17 @@ void setup() {
 	// ------------------------------------------------------------------------------
 	PPM_PORT |= ( 1 << PB1 );	// Set PIN B1 to disable Radio passthrough (mux)
 	
-	
-	
-	
+
+    serconfig = digitalRead(CONFIGPIN);    
+
+    if (serconfig)
+    {
+        Serial.begin(115200);
+    }
+    else
+    {
+        Serial.begin(100000, SERIAL_8E2);
+    }
 }
 
 void loop() {
@@ -273,15 +322,23 @@ void loop() {
 	PWM_LOOP: // SERVO_PWM_MODE
 	while( 1 )
 	{
+		delay(7);
 		
-		_delay_us (950); // Slow down while loop
-		
+        if (serconfig)
+        {
+            for (uint8_t i = START_CHANNEL; i < SERVO_CHANNELS; i++)
+            {
+                Serial.print(ppm_read(i));
+                Serial.print(" ");
+            }
+            Serial.println();
+        }
+        else
+        {
+            SBUS_Build_Packet();
+	    	Serial.write(SBUS_Packet_Data, 25);
+        }
+
 	}	// PWM Loop end
 
-	
-
-	
 } // main lopo function end
-
-
-
