@@ -41,11 +41,6 @@
 #define PB1 PORTB1 
 #define PB0 PORTB0 
 
-
-#ifndef START_CHANNEL
-#define START_CHANNEL 0
-#endif // START_CHANNEL
-
 // -------------------------------------------------------------
 // SERVO INPUT MODE - !EXPERIMENTAL!
 // -------------------------------------------------------------
@@ -153,9 +148,10 @@ const uint16_t failsafe_ppm[ PPM_ARRAY_MAX ] =
 
 #define SERVO_DDR             DDRD
 #define SERVO_PORT            PORTD
-#define SERVO_INPUT           PIND
+#define SERVO_INPUT           ((PIND & ~0b11) | (PINB & 0b11))
 // PCIE2 PC Interrupt enable 2 is for Arduino Pins (D0-D7), also called PORTD.
 #define SERVO_INT_VECTOR      PCINT2_vect
+ISR(PCINT0_vect, ISR_ALIASOF(PCINT2_vect));
 
 #define SERVO_INT_MASK        PCMSK2
 #define SERVO_INT_CLEAR_FLAG  PCIF2
@@ -315,11 +311,11 @@ CHECK_PINS_START: // Start of servo input check
     servo_pins = SERVO_INPUT;
 
     // Set initial servo pin and channel
-    uint8_t servo_channel = START_CHANNEL;
-    uint8_t servo_pin = ( 1 << START_CHANNEL);
+    uint8_t servo_channel = 0;
+    uint8_t servo_pin = 1;
 
     // Calculate servo input pin change mask
-    uint8_t servo_change = (servo_pins ^ servo_pins_old) & ~(( 1 << START_CHANNEL ) - 1);
+    uint8_t servo_change = (servo_pins ^ servo_pins_old);
 
 CHECK_PINS_LOOP: // Input servo pin check loop
 
@@ -449,7 +445,7 @@ ISR( PPM_INT_VECTOR )
     // Select the next ppm channel
     if( ++ppm_channel >= PPM_ARRAY_MAX ) 
 	{
-		ppm_channel = START_CHANNEL;
+		ppm_channel = 0;
 	}
 }
 // ------------------------------------------------------------------------------
@@ -488,9 +484,11 @@ void ppm_encoder_init( void )
     // ------------------------------------------------------------------------------
     // Set all servo input pins to inputs
     SERVO_DDR = 0;
+    DDRB &= ~0b11;
 
     // Activate pullups on all input pins
-    SERVO_PORT |= 0xFF;
+    SERVO_PORT |= 0b11111100;
+    PORTB &= ~0b11; // No pullups
 
 
     // SERVO/PPM INPUT - PIN CHANGE INTERRUPT
@@ -498,11 +496,12 @@ void ppm_encoder_init( void )
     if( servo_input_mode == SERVO_PWM_MODE )
     {
         // Set servo input interrupt pin mask to all 8 servo input channels
-        SERVO_INT_MASK = 0xFF;
+        SERVO_INT_MASK = 0xFF & ~0b11; // exclude PCINT16,17 (rx,tx)
+        PCMSK0 = (1<< PCINT0) | (1<< PCINT1);
     }
     
     // Enable servo input interrupt
-    PCICR |= (1 << SERVO_INT_ENABLE);
+    PCICR |= ((1 << SERVO_INT_ENABLE) | (1<< PCIE0));
 
     // PPM OUTPUT PIN
     // ------------------------------------------------------------------------------

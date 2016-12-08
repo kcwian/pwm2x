@@ -20,9 +20,9 @@
 // PREPROCESSOR DIRECTIVES
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#define CONFIGPIN 17    // Arduino pin 17 (PC3) to read config on startup
-#define START_CHANNEL 2 // 0 = normal, 2 when using serial connection to mask out interrupts due to serial comms.
-#define SERIAL_SBUS 1   // defined: output sbus data (100kbps,8e2)
+#define CONFIGPIN 17    // Arduino pin 17 (PC3) to read config on startup (HI: serial 115k2,8n1; LO: sbus w/ inverted signal levels)
+
+#define PPMVAL2SBUSVAL(t)  (uint16_t) (((t - 1000) * 0.85 ))
 
 #include "Arduino.h"
 #include "ppm_encoder.h"
@@ -79,108 +79,8 @@
 	uint16_t led_acceleration; // Led acceleration based on throttle stick position
 	bool servo_error_condition = false;	//	Servo signal error condition
 	
-	static uint16_t blink_led_timer = 0; 		// Blink led timer
-	
-	static uint16_t led_code_timer = 0;	// Blink Code Timer
-	static uint8_t led_code_symbol = 0;	// Blink Code current symbol
-
     static uint8_t serconfig = 0;
 
-	
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
-	// LOCAL FUNCTIONS
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
-	
-	// ------------------------------------------------------------------------------
-	// Led blinking (non blocking) function
-	// ------------------------------------------------------------------------------
-		
-	uint8_t blink_led ( uint16_t half_period )	// ( half_period max = 65 s )
-	{
-						
-		blink_led_timer++;
-		
-		if ( blink_led_timer < half_period ) // If half period has not been reached
-		{
-			return 0; // Exit timer function and return 0
-		}
-		else	// half period reached - LED Toggle
-		{
-			PPM_PORT ^= ( 1 << PB0 );	// Toggle status LED
-			blink_led_timer = 0;	// Blink led timer reset
-						
-			return 1;	// half period reached - Exit timer function and return 1
-		}
-	
-	}
-	
-	// ------------------------------------------------------------------------------
-	// Led code (non blocking) function
-	// ------------------------------------------------------------------------------
-	
-	void blink_code_led ( uint8_t code )
-	{
-		
-		const uint8_t coding[2][14] = {
-		
-		// PPM_PASSTROUGH_MODE
-		{ INTER_CODE, LONG_SYMBOL, LONG_SPACE, SHORT_SYMBOL, SHORT_SPACE, SHORT_SYMBOL, LOOP }, 
-		
-		// JETI_MODE
-		{ INTER_CODE, LONG_SYMBOL, LONG_SPACE, SHORT_SYMBOL, SHORT_SPACE, SHORT_SYMBOL, SHORT_SPACE, SHORT_SYMBOL,LOOP }
-		
-		};
-		
-		led_code_timer++;		
-					
-						
-			switch ( coding [ code - 2 ] [ led_code_symbol ] )
-			{
-				case INTER_CODE:
-				
-				if ( led_code_timer < ( INTER_CODE_DURATION ) ) return;
-				else PPM_PORT |= ( 1 << PB0 );		// Enable status LED
-				break;
-				
-				case LONG_SYMBOL:	// Long symbol
-				
-				if ( led_code_timer < ( SYMBOL_LONG_DURATION ) ) return;
-				else PPM_PORT &= ~( 1 << PB0 );	// Disable status LED
-				break;
-				
-				case SHORT_SYMBOL:	// Short symbol
-								
-				if ( led_code_timer < ( SYMBOL_SHORT_DURATION ) ) return;
-				else PPM_PORT &= ~( 1 << PB0 );	// Disable status LED
-				break;
-				
-				case SHORT_SPACE:	// Short space
-				
-				if ( led_code_timer < ( SPACE_SHORT_DURATION ) ) return;
-				else PPM_PORT |= ( 1 << PB0 );		// Enable status LED
-				break;
-				
-				case LONG_SPACE:	// Long space
-				
-				if ( led_code_timer < ( SPACE_LONG_DURATION ) ) return;
-				else PPM_PORT |= ( 1 << PB0 );		// Enable status LED
-				break;
-				
-				case LOOP:	// Loop to code start
-				led_code_symbol = 0;
-				return;
-				break;
-				
-			}
-						
-		led_code_timer = 0;	// Code led timer reset
-		led_code_symbol++;	// Next symbol
-		
-		return; // LED code function return
-		
-	}
-	
-		
 	// ------------------------------------------------------------------------------
 	// ppm reading helper - interrupt safe and non blocking function
 	// ------------------------------------------------------------------------------
@@ -213,8 +113,10 @@ void SBUS_Build_Packet(void)
   SBUS_Packet_Data[0] = 0x0F;  //Start uint8_t
   SBUS_Packet_Position = 1;
   
-  for(SBUS_Current_Channel = START_CHANNEL; SBUS_Current_Channel < SERVO_CHANNELS; SBUS_Current_Channel++)
+  for(SBUS_Current_Channel = 0; SBUS_Current_Channel < SERVO_CHANNELS; SBUS_Current_Channel++)
   {
+    uint16_t sbusval;
+    sbusval = PPMVAL2SBUSVAL(ppm_read(SBUS_Current_Channel));
     for(SBUS_Current_Channel_Bit = 0; SBUS_Current_Channel_Bit < 11; SBUS_Current_Channel_Bit++)
     {
       if(SBUS_Current_Packet_Bit > 7)
@@ -222,7 +124,7 @@ void SBUS_Build_Packet(void)
         SBUS_Current_Packet_Bit = 0;  //If we just set bit 7 in a previous step, reset the packet bit to 0 and
         SBUS_Packet_Position++;       //Move to the next packet uint8_t
       }
-      SBUS_Packet_Data[SBUS_Packet_Position] |= (((ppm_read(SBUS_Current_Channel)>>SBUS_Current_Channel_Bit) & 0x01)<<SBUS_Current_Packet_Bit);  //Downshift the channel data bit, then upshift it to set the packet data uint8_t
+      SBUS_Packet_Data[SBUS_Packet_Position] |= (((sbusval>>SBUS_Current_Channel_Bit) & 0x01)<<SBUS_Current_Packet_Bit);  //Downshift the channel data bit, then upshift it to set the packet data uint8_t
       SBUS_Current_Packet_Bit++;
     }
   }
@@ -273,13 +175,6 @@ void setup() {
 	// ------------------------------------------------------------------------------
 	ppm_encoder_init();
 
-	// ------------------------------------------------------------------------------
-	// Outputs init
-	// ------------------------------------------------------------------------------
-	PPM_DDR |= ( 1 << PB0 );	// Set LED pin (PB0) to output
-	PPM_DDR |= ( 1 << PB1 );	// Set MUX pin (PB1) to output
-	PPM_DDR |= ( 1 << PPM_OUTPUT_PIN );	// Set PPM pin (PPM_OUTPUT_PIN, OC1B) to output
-	
 	// ------------------------------------------------------------------------------		
 	// Timer0 init (normal mode) used for LED control and custom code
 	// ------------------------------------------------------------------------------
@@ -290,19 +185,9 @@ void setup() {
 	OCR0B = 0x00;
 	TIMSK0 = 0x00;		// Timer 1 interrupt disable
 	
-	// ------------------------------------------------------------------------------
-	// Enable global interrupt
-	// ------------------------------------------------------------------------------
 	sei();			// Enable Global interrupt flag
 	
-	// ------------------------------------------------------------------------------
-	// Disable radio passthrough (mux chip A/B control)
-	// ------------------------------------------------------------------------------
-	PPM_PORT |= ( 1 << PB1 );	// Set PIN B1 to disable Radio passthrough (mux)
-	
-
     serconfig = digitalRead(CONFIGPIN);    
-
     if (serconfig)
     {
         Serial.begin(115200);
@@ -326,8 +211,9 @@ void loop() {
 		
         if (serconfig)
         {
-            for (uint8_t i = START_CHANNEL; i < SERVO_CHANNELS; i++)
+            for (uint8_t i = 0; i < SERVO_CHANNELS; i++)
             {
+                // Serial.print(PPMVAL2SBUSVAL(ppm_read(i)));
                 Serial.print(ppm_read(i));
                 Serial.print(" ");
             }
