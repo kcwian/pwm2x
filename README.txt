@@ -1,4 +1,7 @@
-# buzz's 8 channel PWM to PPM converter for RC use. 
+# buzz's 8 channel PWM to PPM & SBUS converter for RC use
+
+With sbus code from https://www.rcgroups.com/forums/showthread.php?2420473-Arduino-S-BUS-Packet-Generator-Code
+
 
 # start with:
 * an Arduino with a Atmega328 or 328p chip on it. 
@@ -9,7 +12,7 @@ How:?
 * Connect upto 8 RC PWM input signals so that the wires go to:
      red = 5v
      black = GND or 0V pin on arduino
-     white = PWM signal pins, these connect to D0,D1,D2,D3,D4,D5,D6,D7
+     white = PWM signal pins, these connect to D8,D9,D2,D3,D4,D5,D6,D7
 
 * Connect the PPM output so that the wires go to:
      red = 5v
