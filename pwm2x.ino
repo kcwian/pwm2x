@@ -13,8 +13,6 @@
 //  make compile-time option to either "hold last good PPM value" or "hold default value/s" in case of 
 //   no actual input signal for each channel.   see FAILHOLD and FAILCENTRE in .h file
 
-
-
 // David/Buzz Sept 3rd 2012. 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------
 // PREPROCESSOR DIRECTIVES
@@ -28,7 +26,6 @@
 #include "ppm_encoder.h"
 #include <util/delay.h>
 #include <avr/io.h>
-
 
 #define	ERROR_THRESHOLD		2									// Number of servo input errors before alerting
 #define ERROR_DETECTION_WINDOW	3000 * LOOP_TIMER_10MS			// Detection window for error detection (default to 30s)
@@ -65,34 +62,33 @@
 #define LONG_SPACE		4
 #define LOOP			5
 
-
-
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------
 // PPM ENCODER INIT AND AUXILIARY TASKS
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
-	// LOCAL VARIABLES
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
-	bool localinit = true; // We are inside init sequence
-	bool mux_passthrough = false; // Mux passthrough mode status Flag : passthrough is off
-	uint16_t led_acceleration; // Led acceleration based on throttle stick position
-	bool servo_error_condition = false;	//	Servo signal error condition
-	
-    static uint8_t serconfig = 0;
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// LOCAL VARIABLES
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+bool localinit = true; // We are inside init sequence
+bool mux_passthrough = false; // Mux passthrough mode status Flag : passthrough is off
+uint16_t led_acceleration; // Led acceleration based on throttle stick position
+bool servo_error_condition = false;	//	Servo signal error condition
 
-	// ------------------------------------------------------------------------------
-	// ppm reading helper - interrupt safe and non blocking function
-	// ------------------------------------------------------------------------------
-	static inline uint16_t ppm_read( uint8_t channel )
-	{
+static uint8_t serconfig = 0;
 
-        uint8_t _ppm_channel = ( channel << 1 ) + 1;
-		uint16_t ppm_tmp = ppm[ _ppm_channel ];
-		while( ppm_tmp != ppm[ _ppm_channel ] ) ppm_tmp = ppm[ _ppm_channel ];
+// ------------------------------------------------------------------------------
+// ppm reading helper - interrupt safe and non blocking function
+// ------------------------------------------------------------------------------
+static inline uint16_t ppm_read(uint8_t channel)
+{
 
-		return ppm_tmp;
-	}
+	uint8_t _ppm_channel = (channel << 1) + 1;
+	uint16_t ppm_tmp = ppm[_ppm_channel];
+	while (ppm_tmp != ppm[_ppm_channel])
+		ppm_tmp = ppm[_ppm_channel];
+
+	return ppm_tmp;
+}
 uint8_t SBUS_Packet_Data[25];
 uint8_t SBUS_Failsafe_Active = 0;
 uint8_t SBUS_Lost_Frame = 0;
@@ -104,72 +100,76 @@ void SBUS_Build_Packet(void)
 	uint8_t SBUS_Current_Packet_Bit = 0;
 	uint8_t SBUS_Packet_Position = 0;
 
-  for(SBUS_Packet_Position = 0; SBUS_Packet_Position < 25; SBUS_Packet_Position++) 
-  {
-	SBUS_Packet_Data[SBUS_Packet_Position] = 0x00;  //Zero out packet data
-  }
-  
-  SBUS_Current_Packet_Bit = 0;
-  SBUS_Packet_Data[0] = 0x0F;  //Start uint8_t
-  SBUS_Packet_Position = 1;
-  
-  for(SBUS_Current_Channel = 0; SBUS_Current_Channel < SERVO_CHANNELS; SBUS_Current_Channel++)
-  {
-    uint16_t sbusval;
-    sbusval = PPMVAL2SBUSVAL(ppm_read(SBUS_Current_Channel));
-    for(SBUS_Current_Channel_Bit = 0; SBUS_Current_Channel_Bit < 11; SBUS_Current_Channel_Bit++)
-    {
-      if(SBUS_Current_Packet_Bit > 7)
-      {
-        SBUS_Current_Packet_Bit = 0;  //If we just set bit 7 in a previous step, reset the packet bit to 0 and
-        SBUS_Packet_Position++;       //Move to the next packet uint8_t
-      }
-      SBUS_Packet_Data[SBUS_Packet_Position] |= (((sbusval>>SBUS_Current_Channel_Bit) & 0x01)<<SBUS_Current_Packet_Bit);  //Downshift the channel data bit, then upshift it to set the packet data uint8_t
-      SBUS_Current_Packet_Bit++;
-    }
-  }
-/*
-  if(SBUS_Channel_Data[16] > 1023) SBUS_Packet_Data[23] |= (1<<0);  //Any number above 1023 will set the digital servo bit
-  if(SBUS_Channel_Data[17] > 1023) SBUS_Packet_Data[23] |= (1<<1);
-  if(SBUS_Lost_Frame != 0) SBUS_Packet_Data[23] |= (1<<2);          //Any number above 0 will set the lost frame and failsafe bits
-  if(SBUS_Failsafe_Active != 0) SBUS_Packet_Data[23] |= (1<<3);
-*/
-  SBUS_Packet_Data[24] = 0x00;  //End uint8_t
+	for (SBUS_Packet_Position = 0; SBUS_Packet_Position < 25;
+			SBUS_Packet_Position++)
+	{
+		SBUS_Packet_Data[SBUS_Packet_Position] = 0x00;  //Zero out packet data
+	}
+
+	SBUS_Current_Packet_Bit = 0;
+	SBUS_Packet_Data[0] = 0x0F;  //Start uint8_t
+	SBUS_Packet_Position = 1;
+
+	for (SBUS_Current_Channel = 0; SBUS_Current_Channel < SERVO_CHANNELS;
+			SBUS_Current_Channel++)
+	{
+		uint16_t sbusval;
+		sbusval = PPMVAL2SBUSVAL(ppm_read(SBUS_Current_Channel));
+		for (SBUS_Current_Channel_Bit = 0; SBUS_Current_Channel_Bit < 11;
+				SBUS_Current_Channel_Bit++)
+		{
+			if (SBUS_Current_Packet_Bit > 7)
+			{
+				SBUS_Current_Packet_Bit = 0; //If we just set bit 7 in a previous step, reset the packet bit to 0 and
+				SBUS_Packet_Position++;       //Move to the next packet uint8_t
+			}
+			SBUS_Packet_Data[SBUS_Packet_Position] |= (((sbusval
+					>> SBUS_Current_Channel_Bit) & 0x01)
+					<< SBUS_Current_Packet_Bit); //Downshift the channel data bit, then upshift it to set the packet data uint8_t
+			SBUS_Current_Packet_Bit++;
+		}
+	}
+	/*
+	 if(SBUS_Channel_Data[16] > 1023) SBUS_Packet_Data[23] |= (1<<0);  //Any number above 1023 will set the digital servo bit
+	 if(SBUS_Channel_Data[17] > 1023) SBUS_Packet_Data[23] |= (1<<1);
+	 if(SBUS_Lost_Frame != 0) SBUS_Packet_Data[23] |= (1<<2);          //Any number above 0 will set the lost frame and failsafe bits
+	 if(SBUS_Failsafe_Active != 0) SBUS_Packet_Data[23] |= (1<<3);
+	 */
+	SBUS_Packet_Data[24] = 0x00;  //End uint8_t
 }
 
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
-	// INITIALISATION CODE
-	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// INITIALISATION CODE
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-void setup() {
-    pinMode(CONFIGPIN, INPUT);
-  
-  	
+void setup()
+{
+	pinMode(CONFIGPIN, INPUT);
+
 	// ------------------------------------------------------------------------------	
 	// Reset Source checkings
 	// ------------------------------------------------------------------------------
 	if (MCUSR & 1)	// Power-on Reset
 	{
-	   MCUSR=0; // Clear MCU Status register
-	   // custom code here
+		MCUSR = 0; // Clear MCU Status register
+		// custom code here
 	}
 	else if (MCUSR & 2)	// External Reset
 	{
-	   MCUSR=0; // Clear MCU Status register
-	   // custom code here
+		MCUSR = 0; // Clear MCU Status register
+		// custom code here
 	}
 	else if (MCUSR & 4)	// Brown-Out Reset
 	{
-	   MCUSR=0; // Clear MCU Status register
-	   brownout_reset=true;
+		MCUSR = 0; // Clear MCU Status register
+		brownout_reset = true;
 	}
 	else	// Watchdog Reset
 	{
-	   MCUSR=0; // Clear MCU Status register
-	   // custom code here
+		MCUSR = 0; // Clear MCU Status register
+		// custom code here
 	}
 
-	
 	// ------------------------------------------------------------------------------
 	// Servo input and PPM generator init
 	// ------------------------------------------------------------------------------
@@ -179,51 +179,52 @@ void setup() {
 	// Timer0 init (normal mode) used for LED control and custom code
 	// ------------------------------------------------------------------------------
 	TCCR0A = 0x00;	// Clock source: System Clock
-	TCCR0B = 0x05;	// Set 1024x prescaler - Clock value: 15.625 kHz - 16 ms max time
+	TCCR0B = 0x05;// Set 1024x prescaler - Clock value: 15.625 kHz - 16 ms max time
 	TCNT0 = 0x00;
 	OCR0A = 0x00;		// OC0x outputs: Disconnected
 	OCR0B = 0x00;
 	TIMSK0 = 0x00;		// Timer 1 interrupt disable
-	
-	sei();			// Enable Global interrupt flag
-	
-    serconfig = digitalRead(CONFIGPIN);    
-    if (serconfig)
-    {
-        Serial.begin(115200);
-    }
-    else
-    {
-        Serial.begin(100000, SERIAL_8E2);
-    }
+
+	sei();
+	// Enable Global interrupt flag
+
+	serconfig = digitalRead(CONFIGPIN);
+	if (serconfig)
+	{
+		Serial.begin(115200);
+	}
+	else
+	{
+		Serial.begin(100000, SERIAL_8E2);
+	}
 }
 
-void loop() {
-
+void loop()
+{
 
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
 	// AUXILIARY TASKS
 	// ------------------------------------------------------------------------------------------------------------------------------------------------------------
 	PWM_LOOP: // SERVO_PWM_MODE
-	while( 1 )
+	while (1)
 	{
 		delay(7);
-		
-        if (serconfig)
-        {
-            for (uint8_t i = 0; i < SERVO_CHANNELS; i++)
-            {
-                // Serial.print(PPMVAL2SBUSVAL(ppm_read(i)));
-                Serial.print(ppm_read(i));
-                Serial.print(" ");
-            }
-            Serial.println();
-        }
-        else
-        {
-            SBUS_Build_Packet();
-	    	Serial.write(SBUS_Packet_Data, 25);
-        }
+
+		if (serconfig)
+		{
+			for (uint8_t i = 0; i < SERVO_CHANNELS; i++)
+			{
+				// Serial.print(PPMVAL2SBUSVAL(ppm_read(i)));
+				Serial.print(ppm_read(i));
+				Serial.print(" ");
+			}
+			Serial.println();
+		}
+		else
+		{
+			SBUS_Build_Packet();
+			Serial.write(SBUS_Packet_Data, 25);
+		}
 
 	}	// PWM Loop end
 
