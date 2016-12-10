@@ -92,12 +92,12 @@ volatile uint8_t servo_input_mode = SERVO_PWM_MODE;
 // Data array for storing ppm (8 channels) pulse widths.
 volatile uint16_t ppm[ PPM_ARRAY_MAX] =
 {
-PPM_PRE_PULSE,
-PPM_SERVO_CENTER,         // Channel 1
+        PPM_PRE_PULSE,
+        PPM_SERVO_CENTER,         // Channel 1
 		PPM_PRE_PULSE,
-		PPM_SERVO_CENTER,         // Channel 2
+		PPM_THROTTLE_DEFAULT,         // Channel 2
 		PPM_PRE_PULSE,
-		PPM_THROTTLE_DEFAULT,     // Channel 3 (throttle)
+		PPM_SERVO_CENTER,     // Channel 3 
 		PPM_PRE_PULSE,
 		PPM_SERVO_CENTER,         // Channel 4
 		PPM_PRE_PULSE,
@@ -294,10 +294,11 @@ ISR( SERVO_INT_VECTOR )
 	// ------------------------------------------------------------------------------
 	// SERVO PWM MODE
 	// ------------------------------------------------------------------------------
-	CHECK_PINS_START: // Start of servo input check
 
 	// Store current servo input pins
 	servo_pins = SERVO_INPUT;
+
+CHECK_PINS_START: // Start of servo input check
 
 	// Set initial servo pin and channel
 	uint8_t servo_channel = 0;
@@ -306,7 +307,7 @@ ISR( SERVO_INT_VECTOR )
 	// Calculate servo input pin change mask
 	uint8_t servo_change = (servo_pins ^ servo_pins_old);
 
-	CHECK_PINS_LOOP: // Input servo pin check loop
+CHECK_PINS_LOOP: // Input servo pin check loop
 
 	// Check for pin change on current servo channel
 	if (servo_change & servo_pin)
@@ -336,12 +337,12 @@ ISR( SERVO_INT_VECTOR )
 
 			goto CHECK_PINS_NOERROR;
 
-			CHECK_PINS_ERROR:
+CHECK_PINS_ERROR:
 
 			// on width input error, use defailt/failsave value, OR previous value
 
 			// choose the error handling type here!
-#define FAILHOLD 1
+//#define FAILHOLD 1
 
 #ifdef FAILCENTRE
 			servo_width = failsafe_ppm[ _ppm_channel ]; // failsafe defaults, most channels centred, throttle lowered.
@@ -351,10 +352,10 @@ ISR( SERVO_INT_VECTOR )
 			servo_width = ppm[_ppm_channel]; // all channels hold their previous position!
 #endif
 
-			CHECK_PINS_NOERROR:
+CHECK_PINS_NOERROR:
 
 			//Reset throttle failsafe timeout
-			if (_ppm_channel == 5)
+			if (_ppm_channel == 3)
 				throttle_timeout = 0;
 
 #ifdef _AVERAGE_FILTER_
@@ -375,7 +376,7 @@ ISR( SERVO_INT_VECTOR )
 		}
 	}
 
-	CHECK_PINS_NEXT:
+CHECK_PINS_NEXT:
 
 	// Select next servo pin
 	servo_pin <<= 1;
@@ -391,16 +392,13 @@ ISR( SERVO_INT_VECTOR )
 
 	// All servo input pins has now been processed
 
-	CHECK_PINS_DONE:
+CHECK_PINS_DONE:
 
 	// Reset Watchdog Timer
 	wdt_reset();
 
 	// Set servo input missing flag false to indicate that we have received servo input signals
 	servo_input_missing = false;
-
-	// Store current servo input pins for next check
-	servo_pins_old = servo_pins;
 
 	// Start PPM generator if not already running
 	if (ppm_generator_active == false)
@@ -415,12 +413,16 @@ ISR( SERVO_INT_VECTOR )
 		ppm[5] = PPM_THROTTLE_FAILSAFE;
 	}
 
+	// Store current servo input pins for next check
+	servo_pins_old = servo_pins;
+	servo_pins = SERVO_INPUT;
 	//Has servo input changed while processing pins, if so we need to re-check pins
-	if (servo_pins != SERVO_INPUT)
+	if (servo_pins != servo_pins_old)
 		goto CHECK_PINS_START;
 
 	// Clear interrupt event from already processed pin changes
-	PCIFR |= (1 << SERVO_INT_CLEAR_FLAG);
+	PCIFR |= ((1 << SERVO_INT_CLEAR_FLAG) | (1 << PCIF0));
+
 }
 // ------------------------------------------------------------------------------
 
@@ -479,7 +481,9 @@ void ppm_encoder_init(void)
 
 	// Activate pullups on all input pins
 	SERVO_PORT |= 0b11111100;
-	PORTB &= ~0b11; // No pullups
+	PORTB |= ~0b11;
+	/* Disable pull-ups for all pins */
+	//MCUCR |= (1u << PUD); //MCUCR_PUD = 1u;
 
 	// SERVO/PPM INPUT - PIN CHANGE INTERRUPT
 	// ------------------------------------------------------------------------------
