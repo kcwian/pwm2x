@@ -33,15 +33,6 @@ uint8_t channelorder[ SERVO_CHANNELS] =
 };
 
 
-#define	ERROR_THRESHOLD		2									// Number of servo input errors before alerting
-#define ERROR_DETECTION_WINDOW	3000 * LOOP_TIMER_10MS			// Detection window for error detection (default to 30s)
-#define	ERROR_CONDITION_DELAY	500 * LOOP_TIMER_10MS			// Servo error condition LED delay (LED blinking duration)
-
-#define PASSTHROUGH_MODE_ENABLED	// Comment this line to remove CH8 radio passthrough mode support (hardware failsafe for Arduplane)
-#define PASSTHROUGH_CHANNEL		8 * 2	// Channel for passthrough mode selection
-#define PASSTHROUGH_CHANNEL_OFF_US		ONE_US * 1600 - PPM_PRE_PULSE	// Passthrough off threshold
-#define PASSTHROUGH_CHANNEL_ON_US		ONE_US * 1800 - PPM_PRE_PULSE	// Passthrough on threshold
-
 #define THROTTLE_CHANNEL		1 * 2	// Throttle Channel
 #define THROTTLE_CHANNEL_LED_TOGGLE_US		ONE_US * 1200 - PPM_PRE_PULSE	// Throttle Channel Led toggle threshold
 #define LED_LOW_BLINKING_RATE	125 * LOOP_TIMER_10MS // Led blink rate for low throttle position (half period)

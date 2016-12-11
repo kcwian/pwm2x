@@ -3,9 +3,14 @@
 #ifndef _PPM_ENCODER_H_
 #define _PPM_ENCODER_H_
 
-#include <avr/io.h>
+#ifndef FAILHOLD
+//choose the error handling type here!
+#define FAILHOLD 1
+#endif
 
 // -------------------------------------------------------------
+
+#include <avr/io.h>
 
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
@@ -341,9 +346,6 @@ CHECK_PINS_ERROR:
 
 			// on width input error, use defailt/failsave value, OR previous value
 
-			// choose the error handling type here!
-//#define FAILHOLD 1
-
 #ifdef FAILCENTRE
 			servo_width = failsafe_ppm[ _ppm_channel ]; // failsafe defaults, most channels centred, throttle lowered.
 #endif
@@ -410,7 +412,7 @@ CHECK_PINS_DONE:
 		// Reset throttle timeout
 		throttle_timeout = 0;
 		// Set throttle failsafe value
-		ppm[5] = PPM_THROTTLE_FAILSAFE;
+		ppm[3] = PPM_THROTTLE_FAILSAFE;
 	}
 
 	// Store current servo input pins for next check
