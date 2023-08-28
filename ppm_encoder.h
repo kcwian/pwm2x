@@ -3,9 +3,13 @@
 #ifndef _PPM_ENCODER_H_
 #define _PPM_ENCODER_H_
 
-#ifndef FAILHOLD
+//#ifndef FAILHOLD
+////choose the error handling type here!
+//#define FAILHOLD 1
+//#endif
+#ifndef FAILCENTRE
 //choose the error handling type here!
-#define FAILHOLD 1
+#define FAILCENTRE 1
 #endif
 
 // -------------------------------------------------------------
@@ -126,11 +130,11 @@ PPM_SERVO_CENTER,         // Channel 1
 		PPM_PRE_PULSE,
 		PPM_SERVO_CENTER,         // Channel 2
 		PPM_PRE_PULSE,
-		PPM_THROTTLE_FAILSAFE,    // Channel 3 (throttle)
+		PPM_SERVO_CENTER,    // Channel 3 (throttle) -> swapped from here
 		PPM_PRE_PULSE,
 		PPM_SERVO_CENTER,         // Channel 4
 		PPM_PRE_PULSE,
-		PPM_SERVO_CENTER,           // Channel 5
+		PPM_THROTTLE_FAILSAFE,           // Channel 5 -> to here - do not know why
 		PPM_PRE_PULSE,
 		PPM_SERVO_CENTER,         // Channel 6
 		PPM_PRE_PULSE,
@@ -520,4 +524,3 @@ void ppm_encoder_init(void)
 // ------------------------------------------------------------------------------
 
 #endif // _PPM_ENCODER_H_
-
